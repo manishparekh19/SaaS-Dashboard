@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SaaS Status Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f5f3; --surface: #ffffff; --surface2: #f0f0ee;
+      --border: rgba(0,0,0,0.09); --border-strong: rgba(0,0,0,0.15);
+      --text: #1a1a18; --text2: #5a5a56; --text3: #9a9a94;
+      --ok: #2d7a4f; --ok-bg: #eaf3de;
+      --warn: #8a5c00; --warn-bg: #faeeda;
+      --inc: #a32d2d; --inc-bg: #fcebeb;
+      --radius-md: 8px; --radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #181816; --surface: #222220; --surface2: #2a2a28;
+        --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
+        --text: #f0f0ec; --text2: #9a9a94; --text3: #5a5a56;
+        --ok: #7dc98f; --ok-bg: #162a1e;
+        --warn: #e8b84b; --warn-bg: #2e2410;
+        --inc: #e87070; --inc-bg: #2e1414;
+      }
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2.5rem 1rem; }
+    .container { max-width: 780px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+    .header-left h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+    .header-left p { font-size: 13px; color: var(--text3); margin-top: 3px; }
+    .refresh-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--radius-md); padding: 7px 14px; cursor: pointer; transition: color 0.15s; }
+    .refresh-btn:hover { color: var(--text); }
+    .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .summary-bar { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 1.75rem; }
+    .sum-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px; display: flex; align-items: center; gap: 12px; }
+    .sum-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .sum-icon.ok { background: var(--ok-bg); color: var(--ok); }
+    .sum-icon.warn { background: var(--warn-bg); color: var(--warn); }
+    .sum-icon.inc { background: var(--inc-bg); color: var(--inc); }
+    .sum-num { font-size: 22px; font-weight: 600; line-height: 1; }
+    .sum-num.ok { color: var(--ok); } .sum-num.warn { color: var(--warn); } .sum-num.inc { color: var(--inc); }
+    .sum-label { font-size: 12px; color: var(--text3); margin-top: 2px; }
+    .last-updated { font-size: 12px; color: var(--text3); margin-bottom: 1rem; }
+    .group-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin: 1.75rem 0 8px; display: flex; align-items: center; gap: 6px; }
+    .group-indent { border-left: 2px solid var(--border-strong); margin-left: 6px; padding-left: 14px; }
+    .app-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 10px; cursor: pointer; transition: border-color 0.2s; }
+    .app-card:hover { border-color: var(--border-strong); }
+    .app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .app-name-row { display: flex; align-items: center; gap: 10px; }
+    .app-logo { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .app-name { font-size: 15px; font-weight: 500; }
+    .app-meta { font-size: 12px; color: var(--text3); margin-top: 2px; }
+    .badge { display: flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .badge-ok { background: var(--ok-bg); color: var(--ok); }
+    .badge-warn { background: var(--warn-bg); color: var(--warn); }
+    .badge-incident { background: var(--inc-bg); color: var(--inc); }
+    .badge-loading, .badge-unknown { background: var(--surface2); color: var(--text3); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-ok { background: var(--ok); } .dot-warn { background: var(--warn); } .dot-incident { background: var(--inc); } .dot-loading, .dot-unknown { background: var(--border-strong); }
+    .divider { border: none; border-top: 0.5px solid var(--border); margin: 10px 0; }
+    .incident-banner { font-size: 12px; color: var(--inc); background: var(--inc-bg); padding: 7px 10px; border-radius: var(--radius-md); margin-bottom: 10px; }
+    .components { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px,1fr)); gap: 8px; }
+    .comp { background: var(--surface2); border-radius: var(--radius-md); padding: 8px 10px; }
+    .comp-name { font-size: 12px; color: var(--text2); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .comp-status { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
+    .comp-status.ok { color: var(--ok); } .comp-status.warn { color: var(--warn); } .comp-status.incident { color: var(--inc); } .comp-status.loading, .comp-status.unknown { color: var(--text3); }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+    .view-link { font-size: 12px; color: var(--text3); text-decoration: none; }
+    .no-live { font-size: 11px; color: var(--text3); font-style: italic; }
+    .error-bar { background: var(--inc-bg); color: var(--inc); border: 0.5px solid var(--inc); border-radius: var(--radius-md); padding: 10px 14px; font-size: 13px; margin-bottom: 1rem; display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinning { display: inline-block; animation: spin 0.8s linear infinite; }
+    footer { margin-top: 2.5rem; text-align: center; font-size: 12px; color: var(--text3); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <script>
+    // ⚠️ PASTE YOUR CLOUDFLARE WORKER URL HERE ⚠️
+    const WORKER_URL = "https://dawn-violet-693a.manish-parekh.workers.dev";
+  </script>
+
+  <header>
+    <div class="header-left">
+      <h1>SaaS status dashboard</h1>
+      <p id="last-updated">Fetching status…</p>
+    </div>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadAll()">
+      <span id="refresh-icon">↻</span> Refresh
+    </button>
+  </header>
+
+  <div class="summary-bar">
+    <div class="sum-card"><div class="sum-icon ok">✓</div><div><div class="sum-num ok" id="sum-ok">—</div><div class="sum-label">Operational</div></div></div>
+    <div class="sum-card"><div class="sum-icon warn">⚠</div><div><div class="sum-num warn" id="sum-warn">—</div><div class="sum-label">Degraded</div></div></div>
+    <div class="sum-card"><div class="sum-icon inc">✕</div><div><div class="sum-num inc" id="sum-inc">—</div><div class="sum-label">Incident</div></div></div>
+  </div>
+
+  <div class="error-bar" id="error-bar"></div>
+  <div id="cards"></div>
+  <footer>Auto-refreshes every 2 minutes &nbsp;·&nbsp; Click any card to open its status page</footer>
+</div>
+
+<script>
+const APPS = [
+  { id:'okta',       name:'Okta',             logo:'🔐', logoBg:'#00297A', logoColor:'#fff',    meta:'status.okta.com',              statusPageUrl:'https://status.okta.com',              defaultComps:['Core Service','SSO','MFA','Admin Console'] },
+  { id:'slack',      name:'Slack',            logo:'💬', logoBg:'#4A154B', logoColor:'#fff',    meta:'slack-status.com',             statusPageUrl:'https://slack-status.com',             defaultComps:['Login/SSO','Connectivity','Messaging','Notifications'] },
+  { id:'jira',       name:'Jira',             logo:'J',  logoBg:'#0052CC', logoColor:'#fff',    meta:'Atlassian',                    statusPageUrl:'https://status.atlassian.com',         defaultComps:['Software','Service Mgmt','Work Mgmt','Automation'],   group:'Atlassian' },
+  { id:'confluence', name:'Confluence',       logo:'C',  logoBg:'#0065FF', logoColor:'#fff',    meta:'Atlassian',                    statusPageUrl:'https://status.atlassian.com',         defaultComps:['Page editing','Spaces','Search','Integrations'],      group:'Atlassian' },
+  { id:'github',     name:'GitHub',           logo:'GH', logoBg:'#24292F', logoColor:'#fff',    meta:'githubstatus.com',             statusPageUrl:'https://githubstatus.com',             defaultComps:['Git Operations','API Requests','Actions','Pull Requests'] },
+  { id:'aws',        name:'AWS',              logo:'AWS',logoBg:'#232F3E', logoColor:'#FF9900', meta:'status.aws.amazon.com',        statusPageUrl:'https://status.aws.amazon.com',        defaultComps:['EC2 (EU)','S3 (EU)','RDS (EU)','CloudFront'] },
+  { id:'azure',      name:'Azure',            logo:'Az', logoBg:'#0078D4', logoColor:'#fff',    meta:'status.azure.com',             statusPageUrl:'https://status.azure.com',             defaultComps:['Compute','Storage','Networking','Azure AD'],          group:'Microsoft' },
+  { id:'office',     name:'Microsoft 365',    logo:'M',  logoBg:'#D83B01', logoColor:'#fff',    meta:'status.office365.com',         statusPageUrl:'https://status.office365.com',         defaultComps:['Exchange','Teams','SharePoint','OneDrive'],           group:'Microsoft', noLive:true },
+  { id:'hibob',      name:'HiBob',            logo:'HB', logoBg:'#FF5A5F', logoColor:'#fff',    meta:'status.hibob.com',             statusPageUrl:'https://status.hibob.com',             defaultComps:['Core HR','Payroll','Time & Attendance','Integrations'], noLive:true },
+  { id:'google',     name:'Google Workspace', logo:'G',  logoBg:'#4285F4', logoColor:'#fff',    meta:'workspace.google.com/status',  statusPageUrl:'https://workspace.google.com/status',  defaultComps:['Gmail','Drive','Meet','Calendar'],                       noLive:true },
+  { id:'gemini',     name:'Google Gemini',    logo:'✦',  logoBg:'#1A73E8', logoColor:'#fff',    meta:'status.cloud.google.com',      statusPageUrl:'https://status.cloud.google.com',      defaultComps:['Gemini app','Gemini API','Extensions','Advanced'],       noLive:true, group:'AI tools' },
+  { id:'claude',     name:'Claude',           logo:'◆',  logoBg:'#CC785C', logoColor:'#fff',    meta:'status.anthropic.com',         statusPageUrl:'https://status.anthropic.com',         defaultComps:['claude.ai','API','iOS app','Android app'],               group:'AI tools' },
+];
+
+const GROUP_ICONS = { 'Atlassian': '🏢', 'Microsoft': '🪟', 'AI tools': '✨' };
+
+function lbl(s) {
+  return s === 'ok' ? 'Operational' : s === 'warn' ? 'Degraded' : s === 'incident' ? 'Incident' : s === 'unknown' ? 'Check manually' : 'Loading…';
+}
+
+function cardHtml(app, data) {
+  const overall = data?.overall || 'loading';
+  const comps = (data?.noApi || !data?.components?.length)
+    ? app.defaultComps.map(n => ({ name: n, status: data?.noApi ? 'unknown' : 'loading' }))
+    : data.components;
+  return `
+    <div class="app-card" id="card-${app.id}" onclick="window.open('${app.statusPageUrl}','_blank')">
+      <div class="app-header">
+        <div class="app-name-row">
+          <div class="app-logo" style="background:${app.logoBg};color:${app.logoColor}">${app.logo}</div>
+          <div>
+            <div class="app-name">${app.name}</div>
+            <div class="app-meta">${app.group ? '↳ ' + app.group : app.meta}</div>
+          </div>
+        </div>
+        <span class="badge badge-${overall}">
+          <span class="dot dot-${overall}"></span>${lbl(overall)}
+        </span>
+      </div>
+      ${data?.incident ? `<div class="incident-banner">⚠ ${data.incident}</div>` : ''}
+      <hr class="divider">
+      <div class="components">
+        ${comps.map(c => `
+          <div class="comp">
+            <div class="comp-name" title="${c.name}">${c.name}</div>
+            <div class="comp-status ${c.status}">
+              <span class="dot dot-${c.status}"></span>${lbl(c.status)}
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="card-footer">
+        <span class="view-link">↗ ${app.statusPageUrl.replace('https://','')}</span>
+        ${data?.noApi ? `<span class="no-live">No public API — check manually</span>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderAll(services) {
+  const container = document.getElementById('cards');
+  let html = '';
+  let currentGroup = null;
+  APPS.forEach(app => {
+    const g = app.group || null;
+    if (g !== currentGroup) {
+      if (currentGroup !== null) html += '</div>';
+      if (g !== null) html += `<div class="group-label">${GROUP_ICONS[g] || '📁'} ${g}</div><div class="group-indent">`;
+      currentGroup = g;
+    }
+    html += cardHtml(app, services[app.id] ?? null);
+  });
+  if (currentGroup !== null) html += '</div>';
+  container.innerHTML = html;
+}
+
+function updateSummary(services) {
+  let ok = 0, warn = 0, inc = 0;
+  APPS.forEach(app => {
+    const d = services[app.id];
+    if (!d || d.noApi) return;
+    if (d.overall === 'ok') ok++;
+    else if (d.overall === 'warn') warn++;
+    else if (d.overall === 'incident') inc++;
+  });
+  document.getElementById('sum-ok').textContent = ok;
+  document.getElementById('sum-warn').textContent = warn;
+  document.getElementById('sum-inc').textContent = inc;
+}
+
+async function loadAll() {
+  const btn = document.getElementById('refresh-btn');
+  const icon = document.getElementById('refresh-icon');
+  btn.disabled = true;
+  icon.classList.add('spinning');
+  document.getElementById('error-bar').style.display = 'none';
+  document.getElementById('last-updated').textContent = 'Fetching status…';
+  renderAll({});
+
+  if (!WORKER_URL || WORKER_URL === 'YOUR_WORKER_URL_HERE') {
+    const bar = document.getElementById('error-bar');
+    bar.textContent = '⚠ Worker URL not set — open the HTML file and replace YOUR_WORKER_URL_HERE with your Cloudflare Worker URL.';
+    bar.style.display = 'block';
+    document.getElementById('last-updated').textContent = 'Not configured';
+    btn.disabled = false;
+    icon.classList.remove('spinning');
+    return;
+  }
+
+  try {
+    const res = await fetch(WORKER_URL, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error('Worker returned ' + res.status);
+    const data = await res.json();
+    const services = data.services || {};
+    renderAll(services);
+    updateSummary(services);
+    const ts = data.timestamp ? new Date(data.timestamp) : new Date();
+    document.getElementById('last-updated').textContent =
+      'Last updated: ' + ts.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    const bar = document.getElementById('error-bar');
+    bar.textContent = 'Could not reach the status worker. Check your Worker URL and try again.';
+    bar.style.display = 'block';
+    document.getElementById('last-updated').textContent = 'Failed to load';
+  }
+
+  btn.disabled = false;
+  icon.classList.remove('spinning');
+}
+
+loadAll();
+setInterval(loadAll, 120000);
+</script>
+</body>
+</html>
